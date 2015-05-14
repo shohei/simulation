@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<title>WaveEquation1D0</title>
+</head>
+
+<style>
+body{ background-color: #ccccdd; }
+</style>
+
+<body onload = "webMain()">
+<table>
+<tr>
+<form name = "form1">
+<p> canvasサイズ： 
+X<input type="number" name = "c_sizeX" value = "500" step = "50" min = "200" style = "width:50px;" onClick = "onClickC_Size()"> 
+Y<input type="number" name = "c_sizeY" value = "250" step = "50" min = "200" style = "width:50px;" onClick = "onClickC_Size()">&nbsp&nbsp 
+fps<input type = "text" name = "fps" style = "width:30px" > &nbsp
+step<input type = "text" name = "step" style = "width:50px" >&nbsp
+time<input type = "text" name = "time" style = "width:50px" >&nbsp&nbsp&nbsp&nbsp
+deltaT<input type="text" name = "deltaT" style = "width:60px;" >
+</p>
+</form>
+</tr>
+
+<tr>
+<td>
+<canvas id="WebGL" width="500" height="250" style="border: 1px solid;"></canvas>
+</td>
+
+<td>
+<form name = "form2">
+
+<p>
+deltaT0<input type = "number" name = "deltaT0" value = "0.01" min = "0.001" step = "0.001" style = "width:50px"  onClick = "onChangeData()">&nbsp&nbsp&nbsp
+nSkip<input type="number" name="nSkip" value = "1" min = "1" step = "1" style = "width:50px;" onClick = "onChangeData()" >
+</p>
+
+<p>
+nMesh<input type="number" name="nMesh" value = "100" step = "10" min = "50" style = "width:40px;" onClick = "onChangeData()" >&nbsp
+scale<input type="number" name = "scale" value = "2.0" step = "0.05" style = "width:50px;" onClick = "onClickScale()" > 
+</p>
+<p>
+pX0<input type="number" name="pulseX0" value = "0" min = "-5" step = "0.1" style = "width:40px;" onClick = "onChangeData()" >&nbsp&nbsp&nbsp&nbsp
+pWidth<input type="number" name="pulseWidth" value = "1" min = "0.5" step = "0.5" style = "width:40px;" onClick = "onChangeData()" >
+</p>
+<p>
+vel<input type="number" name = "waveVel" value = "1" min = "0.1" step = "0.1" style = "width:40px;" onClick = "onChangeData()" > &nbsp
+mu<input type="number" name = "mu0" value = "0" min = "0" step = "0.01" style = "width:40px;" onClick = "onChangeData()" > 
+</p>
+
+<p>
+<label><input type = "radio" name = "radioB" value = "0" checked onClick = "onChangeBoundary()">Fixed</label> 
+<label><input type = "radio" name = "radioB" value = "1" onClick = "onChangeBoundary()">Free</label> 
+<label><input type = "radio" name = "radioB" value = "2" onClick = "onChangeBoundary()">Non</label> 
+</p>
+
+<p>
+<label><input type = "radio" name = "radioM" value = "0" checked onClick = "onClickMode()">Rectangle</label>&nbsp&nbsp
+<label><input type = "radio" name = "radioM" value = "1" onClick = "onClickMode()">Cos</label>
+</p>
+
+<p>
+<input type="button" name="Start" value = "Start" onclick="onClickStart()">
+<input type="button" name="Freeze" value = "Freeze" onclick="onClickFreeze()">
+<input type="button" name="Freeze" value = "Step" onclick="onClickStep()">
+<input type="button" name="Reset" value = "Reset" onclick="onClickReset()">
+</p>
+
+</form>
+</td>
+</tr>
+</table>
+
+<script id = "vs" type="x-shader/x-vertex"> // 頂点シェーダのプログラム
+attribute vec4 a_vertex;
+uniform float u_angle;//[rad]
+uniform float u_tx, u_ty;
+uniform float u_sx, u_sy;
+void main() 
+{
+  float Sin, Cos;
+  //回転行列
+  Sin = sin(u_angle); Cos = cos(u_angle);
+  mat4 m_rot = mat4(
+     Cos,  Sin, 0.0, 0.0,
+    -Sin,  Cos, 0.0, 0.0,
+     0.0,  0.0, 1.0, 0.0,
+     0.0,  0.0, 0.0, 1.0 
+  );
+  //平行移動行列
+  mat4 m_trans = mat4(
+     1.0, 0.0, 0.0, 0.0,
+     0.0, 1.0, 0.0, 0.0,
+     0.0, 0.0, 1.0, 0.0,
+    u_tx,u_ty, 0.0, 1.0
+  );
+  //拡大縮小行列
+  mat4 m_scale = mat4(
+    u_sx, 0.0, 0.0, 0.0,
+     0.0,u_sy, 0.0, 0.0,
+     0.0, 0.0, 1.0, 0.0,
+     0.0, 0.0, 0.0, 1.0
+  );
+  
+  gl_Position = m_trans * m_rot * m_scale * a_vertex ;   
+}
+</script>
+
+<script id = "fs" type="x-shader/x-fragment">//フラグメントシェーダのプログラム 
+precision mediump float;//これを省略するとエラー！
+uniform vec4 u_color;
+void main() 
+{
+  gl_FragColor = u_color;
+}
+</script>
+
+<script src="../lib/webgl-utils.js"></script>
+<script src="../lib/swgShader.js"></script>
+<script src="../lib/swgMath.js"></script>
+<script src="../lib/swgShape2D.js"></script>
+<script src="../lib/swgSimultaneous.js"></script>
+<script src="waveEquation1D0.js"></script>
+</body>
+</html>

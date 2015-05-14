@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<title>Diffusion2D3</title>
+</head>
+<style>
+body{ background-color: #ccccee; }
+</style>
+
+<body onload="webMain()">
+<table>
+<tr>
+<form name = "form1">
+<p> canvasサイズ： 
+X<input type="number" name = "c_sizeX" value = "400" step = "50" min = "200" style = "width:50px;" onClick = "onClickC_Size()"> 
+Y<input type="number" name = "c_sizeY" value = "400" step = "50" min = "200" style = "width:50px;" onClick = "onClickC_Size()">&nbsp&nbsp 
+fps<input type = "text" name = "fps" style = "width:30px" > &nbsp
+step<input type = "text" name = "step" style = "width:50px" >[s]&nbsp
+time<input type = "text" name = "time" style = "width:50px" >[s]
+</p>
+</form>
+</tr>
+
+<tr>
+<td>
+<canvas id="WebGL" width="400" height="400" style="border: 2px solid;"></canvas>
+</td>
+<td>
+<form name = "form2">
+
+<p>
+拡散数<input type="text" name = "diffNumber" style = "width:50px;" >&nbsp&nbsp 
+deltaT<input type="text" name = "deltaT" style = "width:50px;" >
+</p>
+
+<p>
+deltaT0<input type = "number" name = "deltaT0" value = "0.01" min = "0.001" step = "0.001" style = "width:50px"  onClick = "onChangeData()">&nbsp&nbsp&nbsp
+間引き<input type="number" name="thinningN" value = "1" min = "1" step = "1" style = "width:40px;" onClick = "onChangeData()" >
+</p>
+
+<p>
+分割数<input type="number" name="nMesh" value = "50" step = "10" min = "50" style = "width:50px;" onClick = "onChangeData()" >&nbsp
+半径<input type="number" name="radius" value = "0.1" min = "0.01" step = "0.01" style = "width:50px;" onClick = "onChangeData()" >&nbsp
+</p>
+
+<p>
+拡散係数1<input type="number" name = "diffCoef1" value = "0.001" min = "0.001" step = "0.0001" style = "width:60px;" onClick = "onChangeData()" >&nbsp&nbsp 
+2<input type="number" name = "diffCoef2" value = "0.0001" min = "0.0" step = "0.0001" style = "width:60px;" onClick = "onChangeData()" >
+</p>
+
+<p>
+x0<input type="number" name="x0" value = "0" min = "-0.5" max = "0.5" step = "0.1" style = "width:50px;" onClick = "onChangeData()" >&nbsp
+y0<input type="number" name="y0" value = "0" min = "-0.5" max = "0.5" step = "0.1" style = "width:50px;" onClick = "onChangeData()" >&nbsp
+</p>
+
+<p>
+<label><input type="checkbox" name="Const" onClick = "onChangeData()">Constant</label>&nbsp&nbsp
+adjustH<input type="number" name = "adjustH" value = "1" min = "0" step = "0.1" style = "width:40px;" onClick = "onChangeAdjustH()" > 
+</p>
+
+<p>
+<label><input type = "radio" name = "radioP" value = "0" checked onClick = "onChangeProfile()">Cylinder</label> 
+<label><input type = "radio" name = "radioP" value = "1" onClick = "onChangeProfile()">Cube</label> 
+</p>
+
+<p>
+<label><input type = "radio" name = "radioB" value = "0" checked onClick = "onChangeBoundary()">Dirichlet</label> 
+<label><input type = "radio" name = "radioB" value = "1" onClick = "onChangeBoundary()">Neumann</label> 
+</p>
+
+<p>
+<label><input type = "radio" name = "radioC" value = "0" checked onClick = "onChangeColorMode()">color0</label> 
+<label><input type = "radio" name = "radioC" value = "1" onClick = "onChangeColorMode()">color1</label> 
+<label><input type = "radio" name = "radioC" value = "2" onClick = "onChangeColorMode()">mono</label> 
+</p>
+                
+<p>
+<input type="button" name="Start" value = "Start" onclick="onClickStart()">
+<input type="button" name="Freeze" value = "Freeze" onclick="onClickFreeze()">
+<input type="button" name="Step" value = "Step" onclick="onClickStep()">
+<input type="button" name="Reset" value = "Reset" onclick="onClickReset()">
+</p>
+<p>
+<input type="button" name="CameraReset" value = "C_Reset" onclick="onClickCameraReset()">
+<input type="button" name="CameraReset" value = "C_Above" onclick="onClickCameraAbove()">
+<label><input type = "checkbox" name = "debug" onClick = "onClickDebug()">debug<label>
+</p>
+
+</form>
+<td>
+</tr>
+</table>
+
+<script id = 'vs' type="x-shader/x-vertex">// 頂点シェーダのプログラム
+attribute vec4 a_vertex;    //頂点座標
+attribute vec4 a_normal;    //法線ベクトル
+uniform mat4 u_vpMatrix;    //ビュー投影行列
+uniform mat4 u_modelMatrix; //モデル行列
+uniform mat4 u_normalMatrix;//法線の座標変換行列
+varying vec3 v_WorldPos;    //FSに渡す頂点のワールド座標
+varying vec3 v_Normal;      //FSに渡す頂点の法線ベクトル
+varying float v_phi;
+
+void main() 
+{
+  // 頂点のワールド座標における位置を計算
+  v_WorldPos = vec3( u_modelMatrix * a_vertex);
+  v_Normal = normalize(vec3( u_normalMatrix * a_normal));
+  v_phi = a_vertex.z;
+  
+  gl_Position = u_vpMatrix * u_modelMatrix * a_vertex;//クリップ座標
+}
+</script>
+
+<script id = 'fs' type="x-shader/x-fragment">// フラグメントシェーダのプログラム
+#ifdef GL_ES
+precision mediump float;
+#endif
+uniform vec4 u_diffuseColor; //物体の拡散色
+uniform vec4 u_ambientColor; //物体の環境色
+uniform vec4 u_specularColor;//物体の鏡面色
+uniform float u_shininess;   //物体の光沢度
+uniform vec4 u_lightColor;   //光の色
+uniform vec4 u_lightPos;     //光源の位置
+uniform vec3 u_cameraPos;    //視点
+uniform int u_colorMode;     //表示カラーモード
+varying vec3 v_Normal;
+varying vec3 v_WorldPos;
+varying float v_phi;
+
+vec3 getColor0();
+vec3 getColor1();
+
+void main() 
+{
+  //float phi = v_WorldPos.z;//物理量
+  vec4 col = vec4(0.0, 0.0, 0.0, 1.0);
+
+  if(u_colorMode == 0) //連続カラー表示
+  {
+    col.rgb = getColor0();//連続表示
+    gl_FragColor = col;
+    return;
+  }
+  else if(u_colorMode == 1)//段階表示
+  {
+    col.rgb = getColor1();//連続表示
+    gl_FragColor = col;
+    return;
+  }
+
+  // 法線の正規化
+  vec3 N = normalize(v_Normal);
+  // 光の方向を計算し、正規化
+  vec3 L ;
+  if(u_lightPos.w == 1.0) L = normalize(u_lightPos.xyz - v_WorldPos);
+  else L = normalize(u_lightPos.xyz);
+  // 法線と光の方向の内積
+  float dotNL = dot(N, L);
+  
+  vec4 diffuse, ambient;
+  // 最終的な色を計算
+  diffuse = u_lightColor * u_diffuseColor * max(dotNL, 0.0);
+  ambient = u_lightColor * u_ambientColor ;
+  
+  vec3 V = normalize(u_cameraPos - v_WorldPos);
+  vec3 H = normalize(L + V);
+  float powNH = pow(max(dot(N, H), 0.0), u_shininess);
+  if(dotNL <= 0.0) powNH = 0.0;
+  vec4 specular = powNH * u_lightColor * u_specularColor;
+  gl_FragColor = diffuse + ambient + specular;
+}
+
+vec3 getColor0()
+{
+  float pp = v_phi;
+  vec3 col;
+  if(pp < 0.5)
+  {
+	col.r = 0.0; col.g = 2.0 * pp; col.b = 1.0 - 2.0 * pp;
+  }
+  else
+  {
+	col.r = 2.0 * pp - 1.0; col.g = 2.0 * (1.0 - pp); col.b = 0.0;
+  }
+  return col;
+}
+
+vec3 getColor1()
+{
+  float pp = v_phi;
+  vec3 col;
+  if(pp <= 0.01)
+  {
+ 	col.r = 0.0; col.g = 0.0; col.b = 1.0;
+  }	
+  else if(pp <= 0.1)
+  {
+	col.r = 0.0; col.g = 0.2; col.b = 0.8;
+  }
+  else if(pp <= 0.2)
+  {
+	col.r = 0.0; col.g = 0.4; col.b = 0.6;
+  }
+  else if(pp <= 0.3)
+  {
+	col.r = 0.0; col.g = 0.6; col.b = 0.4;
+  }
+  else if(pp <= 0.4)
+  {
+	col.r = 0.0; col.g = 0.8; col.b = 0.2;
+  }
+  else if(pp <= 0.5)
+  {
+	col.r = 0.0; col.g = 1.0; col.b = 0.0;
+  }
+  else if(pp <= 0.6)
+  {
+    col.r = 0.2; col.g = 0.8; col.b = 0.0;
+  }
+  else if(pp <= 0.7)
+  {
+	col.r = 0.4; col.g = 0.6; col.b = 0.0;
+  }	
+  else if(pp <= 0.8)
+  {
+	col.r = 0.6; col.g = 0.4; col.b = 0.0;
+  }
+  else if(pp <= 0.9)
+  {
+	col.r = 0.8; col.g = 0.2; col.b = 0.0;
+  }
+  else
+  {
+	col.r = 1.0; col.g = 0.0; col.b = 0.0;
+  }	
+  return col;
+}
+</script>
+
+<script src="../lib/webgl-utils.js"></script>
+<script src="../lib/swgShader.js"></script>
+<script src="../lib/swgMatrix4.js"></script>
+<script src="../lib/swgMath.js"></script>
+<script src="../lib/swgPrimitive.js"></script>
+<script src="../lib/swgSupport.js"></script>
+<script src="../lib/swgRigid.js"></script>
+<script src="../lib/swgSimultaneous.js"></script>
+<script src="diffusion2D3.js"></script>
+</body>
+</html>

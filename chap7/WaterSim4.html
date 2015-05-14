@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<title>WaterSim4</title>
+</head>
+<style>
+body{ background-color: #ccccee; }
+</style>
+
+<body onload = "webMain()">
+<table>
+<tr>
+<form name = "form1">
+<p> canvasサイズ： 
+X<input type="number" name = "c_sizeX" value = "450" step = "50" min = "200" style = "width:50px;" onClick = "onClickC_Size()"> 
+Y<input type="number" name = "c_sizeY" value = "400" step = "50" min = "200" style = "width:50px;" onClick = "onClickC_Size()">&nbsp&nbsp 
+fps<input type = "text" name = "fps" style = "width:30px" > &nbsp&nbsp
+step<input type = "text" name = "step" style = "width:50px" >[s]&nbsp
+e_time<input type = "text" name = "e_time" style = "width:50px" >[s]&nbsp
+n_time<input type="text" name = "n_time" style = "width:50px;" > 
+</p>
+
+</form>
+</tr>
+
+<tr>
+<td>
+<canvas id="WebGL" width="450" height="400" style="border: 1px solid;"></canvas>
+</td>
+
+<td>
+<form name = "form2">
+
+<p>
+deltaT<input type="number" name = "deltaT" value = "0.05" step = "0.001" min = "0.001" style = "width:60px;" onClick = "onChangeData()">&nbsp
+Re<input type="number" name = "Re"  value = "500" step = "50" min = "200"style = "width:50px;" onClick = "onChangeData()">
+</p>
+
+<p>
+amp<input type="number" name = "amp0" value = "5" step = "0.1" min = "0.0" style = "width:40px;" onClick = "onChangeData2()" >&nbsp
+mu<input type="number" name = "mu0" value = "2" step = "0.1" min = "0" style = "width:40px;" onClick = "onChangeData2()" >
+</p>
+
+<p>
+vel<input type="number" name = "waveVel" value = "1" step = "0.1" min = "0.1" style = "width:50px;" onClick = "onChangeData()" >&nbsp
+λ<input type="number" name = "lambda" value = "1" step = "0.1" min = "0.1" style = "width:40px;" onClick = "onChangeData()" >&nbsp
+</p>
+<p>
+speed<input type="number" name="speed" value = "0.05" min = "0" step = "0.1" style = "width:50px;" onClick = "onChangeData2()" >
+<input type="button" name="ObsStop" value = "ObsStop" onclick="onClickObsStop()">
+</p>
+
+<p>
+moveMode&nbsp
+<label><input type = "radio" name = "radioMM" value = "0" checked onClick = "onChangeMoveMode()">Line</label>&nbsp&nbsp 
+<label><input type = "radio" name = "radioMM" value = "1" onClick = "onChangeMoveMode()">Circle</label> 
+</p>
+
+<p>
+adjustC<input type="number" name = "adjustC" value = "1.0" min = "0" step = "0.1" style = "width:50px;" onClick = "onChangeData2()" >&nbsp
+index<input type="number" name = "index" value = "1.33" min = "1" step = "0.01" style = "width:50px;" onClick = "onChangeData2()" >
+</p>
+
+<p> 
+shadow<input type="number" name = "shadow" value = "0.0" step = "0.05" min = "0.05" max = "1" style = "width:50px;" onClick = "onChangeData2()" > &nbsp
+trans<input type="number" name = "transparency" value = "0.0" step = "0.05" min = "0" max = "1" style = "width:50px;" onClick = "onChangeData2()" > </p>
+<p>
+
+<p>
+<input type="button" name="Start" value = "Start" onclick="onClickStart()">
+<input type="button" name="Freeze" value = "Freeze" onclick="onClickFreeze()">
+<input type="button" name="Step" value = "Step" onclick="onClickStep()">
+<input type="button" name="Reset" value = "Reset" onclick="onClickReset()">
+</p>
+<p>
+<input type="button" name="CameraReset" value = "C_Reset" onclick="onClickCameraReset()">
+<input type="button" name="CameraAbove" value = "C_Above" onclick="onClickCameraAbove()">
+<label><input type = "checkbox" name = "inverse" onClick = "onClickInverse()">inverse<label>
+</p>
+
+<p>Light 
+X<input type="number" name = "lightX" value = "0.0" step = "1.0" style = "width:35px;" onClick = "onClickLight()" > 
+Y<input type="number" name = "lightY" value = "0.0" step = "1.0" style = "width:35px;" onClick = "onClickLight()" >  
+Z<input type="number" name = "lightZ" value = "0.0" step = "1.0" style = "width:35px;" onClick = "onClickLight()" > 
+</p>
+
+</form>
+</td>
+</tr>
+</table>
+
+<script id = 'vs' type="x-shader/x-vertex">// 頂点シェーダのプログラム
+#ifdef GL_ES
+precision mediump float;
+#endif
+attribute vec4 a_vertex;    //頂点座標
+attribute vec4 a_normal;    //法線ベクトル
+attribute vec4 a_color;     //チェック模様のときだけ
+uniform mat4 u_texVpMatrix; //テクスチャのビュー投影行列
+uniform mat4 u_vpMatrix;    //ビュー投影行列
+uniform mat4 u_modelMatrix; //モデル行列
+uniform mat4 u_normalMatrix;//法線の座標変換行列
+uniform bool u_flagCheck;   //チェック模様フラグ
+
+uniform vec3 u_cameraPos;   //視点 
+uniform float u_index;      // 屈折率
+uniform bool u_flagStencil; //ステンシル・フラグ
+
+varying vec3 v_WorldPos;    //FSに渡す頂点のワールド座標
+varying vec3 v_Normal;      //FSに渡す頂点の法線ベクトル
+varying vec4 v_ColorCheck;
+varying vec4 v_texCoord;    //FSへ渡すテクスチャ座標
+
+void main() 
+{
+  // 頂点のワールド座標における位置を計算
+  vec4 worldPos = u_modelMatrix * a_vertex;
+  if(u_cameraPos.z > 0.0 && worldPos.z < 0.0 && u_flagStencil)
+  {
+    //視点が水面より上でかつ頂点が水面より下
+    float H = length(u_cameraPos.z);
+    float D = length(u_cameraPos.xy);
+    worldPos.z *= (-0.8 * u_index*(1.0 + 0.06*D/(0.2+H)) + 1.8);
+    if(worldPos.z > -0.01) worldPos.z = -0.01;
+  }
+  v_WorldPos = worldPos.xyz;
+  
+  v_Normal = normalize(vec3( u_normalMatrix * a_normal));
+  //フロアのチェック模様
+  if(u_flagCheck) v_ColorCheck = a_color;
+  //テクスチャ座標の計算
+  v_texCoord = u_texVpMatrix * worldPos;
+
+  gl_Position = u_vpMatrix * worldPos;//クリップ座標
+}
+</script>
+
+<script id = 'fs' type="x-shader/x-fragment">// フラグメントシェーダのプログラム
+#ifdef GL_ES
+precision mediump float;
+#endif
+uniform sampler2D u_sampler; // サンプラ
+uniform vec4 u_diffuseColor; //物体の拡散色
+uniform vec4 u_ambientColor; //物体の環境色
+uniform vec4 u_specularColor;//物体の鏡面色
+uniform float u_shininess;   //物体の光沢度
+uniform vec4 u_lightColor;   //光の色
+uniform vec4 u_lightPos;     //光源の位置
+uniform vec3 u_cameraPos;    //視点
+uniform float u_shadow;      // 影の濃さ
+uniform float u_adjustC;      
+uniform bool u_flagCheck;    //チェック模様フラグ
+uniform bool u_flagCaustics; //集光模様フラグ
+varying vec3 v_Normal;
+varying vec3 v_WorldPos;
+varying vec4 v_ColorCheck;
+varying vec4 v_texCoord;
+
+float makeCaustics(float c0);
+void main() 
+{
+  // 法線の正規化
+  vec3 N = normalize(v_Normal);
+  // 光の方向を計算し、正規化
+  vec3 L ;
+  if(u_lightPos.w == 1.0) L = normalize(u_lightPos.xyz - v_WorldPos);
+  else L = normalize(u_lightPos.xyz);
+  // 法線と光の方向の内積
+  float dotNL = dot(N, L);
+ 
+  bool flagCaustics = u_flagCaustics;
+  if(dotNL < 0.0) flagCaustics = false;//陰になる部分には集光模様を作らない
+
+  float c0 = 0.7;//集光模様がないときの明るさ
+  float c = makeCaustics(c0);
+  vec4 lightColor = u_lightColor;
+  if(v_WorldPos.z < 0.0 && flagCaustics)  lightColor.rgb *= c;
+  else  lightColor.rgb *= c0;
+
+  vec4 diffuse, ambient;
+  if(u_flagCheck)
+  {
+    diffuse = lightColor * v_ColorCheck * max(dotNL, 0.0);
+    ambient = lightColor * v_ColorCheck * 0.9;
+    ambient.a = 1.0;
+  }
+  else
+  {
+    diffuse = lightColor * u_diffuseColor * max(dotNL, 0.0);
+    ambient = lightColor * u_ambientColor ;
+  }
+  //水面下の物体を少し青っぽくする
+  if(v_WorldPos.z < 0.0) { diffuse.b *= 1.2; ambient.b *= 1.2; }
+
+  vec3 V = normalize(u_cameraPos - v_WorldPos);
+  vec3 H = normalize(L + V);
+  float powNH = pow(max(dot(N, H), 0.0), u_shininess);
+  if(dotNL <= 0.0) powNH = 0.0;
+  vec4 specular = powNH * lightColor * u_specularColor;
+  
+  if(u_shadow < 0.01)// shadowでないとき
+    gl_FragColor = diffuse + ambient + specular;   
+  else // shadowのとき 
+    gl_FragColor = vec4(0.0, 0.0, 0.0, u_shadow);
+}
+
+float makeCaustics(float c0)
+{
+  //勾配の強さに比例した集光模様
+  float delta, p1, p2;
+  vec4 offset = vec4(0.0, 0.0, 0.0, 0.0);
+  vec2 grad;
+  delta = 0.1;
+
+  offset.xy = vec2(-delta, 0.0);
+  p1 = texture2DProj(u_sampler, v_texCoord + offset).r;
+  offset.xy = vec2(delta, 0.0);
+  p2 = texture2DProj(u_sampler, v_texCoord + offset).r;
+  grad.x =(p2 - p1) / delta;// clamp((p2 - p1) / delta, 0.0, 1.0);//x方向微分
+  offset.xy = vec2(0.0, -delta);
+  p1 = texture2DProj(u_sampler, v_texCoord + offset).r;
+  offset.xy = vec2(0.0, delta);
+  p2 = texture2DProj(u_sampler, v_texCoord + offset).r;
+  grad.y = (p2 - p1) / delta;//clamp((p2 - p1) / delta, 0.0, 1.0);//y方向微分
+  float c1 = length(grad) * 100.0;// * u_adjustC;
+
+  //変位量に比例した集光模様
+  vec4 texColor = texture2DProj(u_sampler, v_texCoord);
+  float c2 = (texColor.r - 0.5) * 200.0;//250.0;
+  //合成
+  float c = c1 * u_adjustC + c2;
+  c = c*c*c  + c0;
+  c = clamp(c, 0.5, 1.0);
+  return c;
+}
+
+/*
+void main() 
+{
+  //集光模様の明暗を光源色に反映
+  vec4 texColor = texture2DProj(u_sampler, v_texCoord);
+  float c0 = 0.7;
+  float c = (texColor.r - 0.5) * 100.0 ;
+  if(c < 0.0) c*= 0.5;
+  c = c*c*c + c0;
+  if(c > 1.0) c = 1.0;
+  if(c < 0.5) c = 0.5;
+  vec4 lightColor = u_lightColor;
+  if(v_WorldPos.z < 0.0 && u_flagCaustics)  lightColor.rgb *= c;
+  else  lightColor.rgb *= c0;
+
+  // 法線の正規化
+  vec3 N = normalize(v_Normal);
+  // 光の方向を計算し、正規化
+  vec3 L ;
+  if(u_lightPos.w == 1.0) L = normalize(u_lightPos.xyz - v_WorldPos);
+  else L = normalize(u_lightPos.xyz);
+  // 法線と光の方向の内積
+  float dotNL = dot(N, L);
+  
+  vec4 diffuse, ambient;
+  if(u_flagCheck)
+  {
+    diffuse = lightColor * v_ColorCheck * max(dotNL, 0.0);
+    ambient = lightColor * v_ColorCheck * 0.9;
+    ambient.a = 1.0;//アルファ値を1未満にすると暗い所で白っぽくなる
+  }
+  else
+  {
+    diffuse = lightColor * u_diffuseColor * max(dotNL, 0.0);
+    ambient = lightColor * u_ambientColor ;
+  }
+  //水面下の物体を少し青っぽくする
+  if(v_WorldPos.z < 0.0) { diffuse.b *= 1.2; ambient.b *= 1.2; }
+
+  vec3 V = normalize(u_cameraPos - v_WorldPos);
+  vec3 H = normalize(L + V);
+  float powNH = pow(max(dot(N, H), 0.0), u_shininess);
+  if(dotNL <= 0.0) powNH = 0.0;
+  vec4 specular = powNH * lightColor * u_specularColor;
+  
+  if(u_shadow < 0.01)// shadowでないとき
+    gl_FragColor = diffuse + ambient + specular;   
+  else // shadowのとき 
+    gl_FragColor = vec4(0.0, 0.0, 0.0, u_shadow);
+}*/
+</script>
+
+<script src="../lib/webgl-utils.js"></script>
+<script src="../lib/swgShader.js"></script>
+<script src="../lib/swgMatrix4.js"></script>
+<script src="../lib/swgMath.js"></script>
+<script src="../lib/swgPrimitive.js"></script>
+<script src="../lib/swgRigid.js"></script>
+<script src="../lib/swgSupport.js"></script>
+<script src="waterSim4.js"></script>
+</body>
+</html>

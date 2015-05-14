@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<title>Laplace5</title>
+</head>
+
+<style>
+body{ background-color: #ccccdd; }
+</style>
+
+<body onload = "webMain()">
+<table>
+<tr>
+<form name = "form1">
+<p> canvasサイズ： 
+X<input type="number" name = "c_sizeX" value = "550" step = "50" min = "200" style = "width:50px;" onClick = "onClickC_Size()"> 
+Y<input type="number" name = "c_sizeY" value = "300" step = "50" min = "200" style = "width:50px;" onClick = "onClickC_Size()">&nbsp&nbsp 
+fps<input type = "text" name = "fps" style = "width:30px" > &nbsp
+step<input type = "text" name = "step" style = "width:50px" >[s]&nbsp
+time<input type = "text" name = "time" style = "width:50px" >[s]
+</p>
+</form>
+</tr>
+
+<tr>
+<td>
+<canvas id="WebGL" width="550" height="300" style="border: 1px solid;"></canvas>
+</td>
+
+<td>
+<form name = "form2">
+
+<p>
+Cavity
+X0<input type="number" name="cavX0" value = "0.8" min = "0.5" step = "0.02" style = "width:40px;" onClick = "onChangeData()" >
+WX<input type="number" name="cavWX" value = "0.8" min = "0.0" step = "0.04" style = "width:40px;" onClick = "onChangeData()" >
+WY<input type="number" name="cavWY" value = "0.5" min = "0.0" step = "0.02" style = "width:40px;" onClick = "onChangeData()" >
+</p>
+
+<p>
+<label><input type="checkbox" name="phi" onClick = "onDisplay()">Φ</label>&nbsp
+<label><input type="checkbox" name="psi" onClick = "onDisplay()">Ψ</label>&nbsp
+本数<input type="number" name="nLine" value = "20" step = "2" style = "width:40px;" onClick = "onDisplay()" >&nbsp
+範囲<input type="number" name="range" value = "2" step = "0.1" style = "width:40px;" onClick = "onDisplay()" >
+</p>
+
+<p>
+<label><input type="checkbox" name="velocity"  onClick = "onDisplay()">速度</label>&nbsp
+長さ<input type="number" name="arrowScale" value = "0.05" step = "0.01" style = "width:40px;" onClick = "onDisplay()" >&nbsp
+幅<input type="number" name="arrowWidth" value = "1" min = "1" step = "1" style = "width:30px;" onClick = "onDisplay()" >&nbsp
+間隔<input type="number" name="intervalV" value = "2" min = "1" step = "1" style = "width:30px;" onClick = "onDisplay()" >
+</p>
+
+<p>
+<label><input type="checkbox" name="grid"  onClick = "onDisplay()">格子表示</label>&nbsp&nbsp&nbsp&nbsp
+表示倍率<input type="number" name = "scale" value = "1.7" step = "0.05" style = "width:40px;" onClick = "onClickScale()" > 
+</p>
+
+<p>粒子
+max<input type="number" name = "numMaxP" value = "10000" min = "100" step = "100" style = "width:50px;" onClick = "onClickP()" >&nbsp 
+num0<input type="number" name = "num0" value = "100" step = "10" min = "10" style = "width:40px;" onClick = "onClickP()" >&nbsp 
+type<input type="number" name = "typeP" value = "1" step = "1" min = "0" max = "2" style = "width:30px;" onClick = "onClickP()" >&nbsp 
+</p>
+<p>
+period<input type="number" name = "period" value = "0.0" min = "0" step = "0.01" style = "width:40px;" onClick = "onClickP()" >&nbsp 
+speed<input type="number" name = "speedCoef" value = "1" step = "0.1" style = "width:40px;" onClick = "onClickP()" >&nbsp 
+size<input type="number" name = "sizeP" value = "3" step = "1" style = "width:30px;" onClick = "onClickP()" >&nbsp 
+</p>
+
+<p>
+<input type="button" name="Start" value = "Start" onclick="onClickStart()">
+<input type="button" name="Freeze" value = "Freeze" onclick="onClickFreeze()">
+<input type="button" name="Step" value = "Step" onclick="onClickStep()">
+<input type="button" name="Reset" value = "Reset" onclick="onClickReset()">
+</p>
+
+</form>
+</td>
+</tr>
+</table>
+
+<script id = "vs" type="x-shader/x-vertex"> // 頂点シェーダのプログラム
+attribute vec4 a_vertex;//頂点座標
+attribute vec4 a_color ;//色データ
+uniform float u_angle;  //[rad]
+uniform float u_tx, u_ty;
+uniform float u_sx, u_sy;
+uniform float u_size;
+uniform bool u_flagPoint;//点フラグ
+varying vec4 v_color;
+void main() 
+{
+  float Sin, Cos;
+  //回転行列
+  Sin = sin(u_angle); Cos = cos(u_angle);
+  mat4 m_rot = mat4(
+     Cos,  Sin, 0.0, 0.0,
+    -Sin,  Cos, 0.0, 0.0,
+     0.0,  0.0, 1.0, 0.0,
+     0.0,  0.0, 0.0, 1.0 
+   );
+   //平行移動行列
+   mat4 m_trans = mat4(
+     1.0, 0.0, 0.0, 0.0,
+     0.0, 1.0, 0.0, 0.0,
+     0.0, 0.0, 1.0, 0.0,
+    u_tx,u_ty, 0.0, 1.0
+   );
+   //拡大縮小行列
+   mat4 m_scale = mat4(
+    u_sx, 0.0, 0.0, 0.0,
+     0.0,u_sy, 0.0, 0.0,
+     0.0, 0.0, 1.0, 0.0,
+     0.0, 0.0, 0.0, 1.0
+   );
+  if(u_flagPoint)//点表示
+  {
+    gl_PointSize = u_size;//pixelサイズ
+    gl_Position = a_vertex;
+  }
+  else
+    gl_Position = m_trans * m_rot * m_scale * a_vertex ; 
+
+  v_color = a_color;//圧力表示用
+}
+</script>
+
+<script id = "fs" type="x-shader/x-fragment">//フラグメントシェーダのプログラム 
+precision mediump float;//これを省略するとエラー！
+uniform vec4 u_color;
+uniform float u_type;//0:■, 1:●, 2:濃淡
+uniform bool u_flagPoint;//点フラグ
+uniform bool u_flagColor;//圧力表示フラグ
+varying vec4 v_color;
+void main() 
+{
+  if(u_flagPoint && u_type >= 1.0)
+  {
+    float dist = distance(gl_PointCoord, vec2(0.5, 0.5));//各点の中心からの距離
+    if(dist > 0.5) discard;
+    gl_FragColor = u_color;
+    if(u_type == 2.0)
+    {
+      float c = dist + 0.1;
+      gl_FragColor.rgb = c * u_color.rgb;
+      gl_FragColor.a =  1.0 - dist * 2.0;
+    }
+    return;
+  }
+  else if(u_flagColor) gl_FragColor = v_color;
+  else gl_FragColor = u_color;
+}
+</script>
+
+<script src="../lib/webgl-utils.js"></script>
+<script src="../lib/swgShader.js"></script>
+<script src="../lib/swgMath.js"></script>
+<script src="../lib/swgShape2D.js"></script>
+<script src="laplace5.js"></script>
+</body>
+</html>

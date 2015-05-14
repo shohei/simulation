@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<title>Advection</title>
+</head>
+
+<style>
+body{ background-color: #ccccdd; }
+</style>
+
+<body onload = "webMain()">
+<table>
+<tr>
+<form name = "form1">
+<p> canvasサイズ： 
+X<input type="number" name = "c_sizeX" value = "400" step = "50" min = "200" style = "width:50px;" onClick = "onClickC_Size()"> 
+Y<input type="number" name = "c_sizeY" value = "400" step = "50" min = "200" style = "width:50px;" onClick = "onClickC_Size()">&nbsp&nbsp 
+fps<input type = "text" name = "fps" style = "width:30px" > &nbsp
+step<input type = "text" name = "step" style = "width:50px" >[s]&nbsp
+time<input type = "text" name = "time" style = "width:50px" >
+</p>
+</form>
+</tr>
+
+<tr>
+<td>
+<canvas id="WebGL" width="400" height="400" style="border: 1px solid;"></canvas>
+</td>
+
+<td>
+<form name = "form2">
+
+<p>
+Courant<input type="text" name = "Courant" style = "width:50px;" >&nbsp&nbsp 
+deltaT<input type="text" name = "deltaT" style = "width:50px;" >
+</p>
+
+<p>
+deltaT0<input type = "number" name = "deltaT0" value = "0.01" min = "0.001" step = "0.001" style = "width:50px"  onClick = "onChangeData()">&nbsp&nbsp&nbsp
+間引き<input type="number" name="thinningN" value = "1" min = "1" step = "1" style = "width:40px;" onClick = "onChangeData()" >
+</p>
+
+<p>
+分割数<input type="number" name="nMesh" value = "100" step = "10" min = "50" style = "width:50px;" onClick = "onChangeData()" >&nbsp
+パルス幅<input type="number" name="pulseWidth" value = "0.1" min = "0.02" step = "0.02" style = "width:50px;" onClick = "onChangeData()" >&nbsp
+</p>
+
+<p>
+speed<input type="number" name = "speed" value = "1" min = "0.1" step = "0.1" style = "width:50px;" onClick = "onChangeData()" > 
+</p>
+
+<p>
+表示倍率<input type="number" name = "scale" value = "0.9" step = "0.05" style = "width:50px;" onClick = "onClickScale()" > 
+</p>
+
+<p>
+<label><input type = "radio" name = "radioM" value = "0" checked onClick = "onChangeMethod()">1次</label> 
+<label><input type = "radio" name = "radioM" value = "1" onClick = "onChangeMethod()">2次</label> 
+<label><input type = "radio" name = "radioM" value = "2" onClick = "onChangeMethod()">CIP</label> 
+<label><input type = "radio" name = "radioM" value = "3" onClick = "onChangeMethod()">strict</label> 
+</p>
+
+<p>
+<input type="button" name="Start" value = "Start" onclick="onClickStart()">
+<input type="button" name="Freeze" value = "Freeze" onclick="onClickFreeze()">
+<input type="button" name="Reset" value = "Reset" onclick="onClickReset()">
+</p>
+
+</form>
+</td>
+</tr>
+</table>
+
+<script id = "vs" type="x-shader/x-vertex"> // 頂点シェーダのプログラム
+attribute vec4 a_vertex;
+uniform float u_angle;//[rad]
+uniform float u_tx, u_ty;
+uniform float u_sx, u_sy;
+void main() 
+{
+  float Sin, Cos;
+  //回転行列
+  Sin = sin(u_angle); Cos = cos(u_angle);
+  mat4 m_rot = mat4(
+     Cos,  Sin, 0.0, 0.0,
+    -Sin,  Cos, 0.0, 0.0,
+     0.0,  0.0, 1.0, 0.0,
+     0.0,  0.0, 0.0, 1.0 
+  );
+  //平行移動行列
+  mat4 m_trans = mat4(
+     1.0, 0.0, 0.0, 0.0,
+     0.0, 1.0, 0.0, 0.0,
+     0.0, 0.0, 1.0, 0.0,
+    u_tx,u_ty, 0.0, 1.0
+  );
+  //拡大縮小行列
+  mat4 m_scale = mat4(
+    u_sx, 0.0, 0.0, 0.0,
+     0.0,u_sy, 0.0, 0.0,
+     0.0, 0.0, 1.0, 0.0,
+     0.0, 0.0, 0.0, 1.0
+  );
+  
+  gl_Position = m_trans * m_rot * m_scale * a_vertex ;   
+}
+</script>
+
+<script id = "fs" type="x-shader/x-fragment">//フラグメントシェーダのプログラム 
+precision mediump float;//これを省略するとエラー！
+uniform vec4 u_color;
+void main() 
+{
+  gl_FragColor = u_color;
+}
+</script>
+
+<script src="../lib/webgl-utils.js"></script>
+<script src="../lib/swgShader.js"></script>
+<script src="../lib/swgMath.js"></script>
+<script src="../lib/swgShape2D.js"></script>
+<script src="advection.js"></script>
+</body>
+</html>
